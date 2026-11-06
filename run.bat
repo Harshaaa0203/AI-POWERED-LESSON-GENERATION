@@ -8,3 +8,4 @@ echo Press Ctrl+C in this terminal window to stop the server.
 echo.
 streamlit run app.py
 pause
+

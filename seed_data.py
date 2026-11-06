@@ -45,3 +45,4 @@ def seed_benchmarks():
 
 if __name__ == "__main__":
     seed_benchmarks()
+

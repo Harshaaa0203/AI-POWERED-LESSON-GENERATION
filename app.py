@@ -288,6 +288,24 @@ if "1. 📊 Dashboard" in selected_nav:
         st.bar_chart(pacing_df.set_index("Section")["Minutes"], color="#3b82f6")
         st.caption("Total Duration: Exactly 45 Minutes (Strictly Enforced by QC Agent 2).")
 
+        # QC Scores Comparison Across Lessons
+        recent_list = stats.get("recent_lessons", [])
+        if recent_list:
+            scores_data = []
+            for r_item in recent_list:
+                f_s = (r_item.get("factual_qc_report") or {}).get("overall_score")
+                i_s = (r_item.get("instructional_qc_report") or {}).get("overall_score")
+                if f_s is not None and i_s is not None:
+                    scores_data.append({
+                        "Lesson": r_item["title"][:20],
+                        "Factual Accuracy QC": float(f_s),
+                        "Instructional Quality QC": float(i_s)
+                    })
+            if scores_data:
+                st.write("**Audit Scores Comparison (Factual vs Instructional):**")
+                sc_df = pd.DataFrame(scores_data).set_index("Lesson")
+                st.bar_chart(sc_df)
+
     st.markdown("<br/>", unsafe_allow_html=True)
 
     col_left, col_right = st.columns([1.6, 1])
@@ -921,6 +939,29 @@ elif "8. 👁️ Preview Lesson" in selected_nav:
         # Render complete markdown preview
         rendered_md = md_exporter.export_lesson(active_lesson)
         st.markdown(rendered_md)
+
+        # Interactive Student Knowledge Check
+        questions = active_lesson.get("knowledge_check_questions", [])
+        if questions:
+            st.divider()
+            st.markdown("### 📝 Interactive Student Knowledge Check")
+            st.caption("Test your understanding directly. Select an answer and submit to receive immediate pedagogical feedback.")
+            for q in questions:
+                qid = q.get("question_id", 1)
+                q_text = q.get("question", "")
+                opts = q.get("options", [])
+                correct = q.get("correct_answer", "")
+                explanation = q.get("explanation", "")
+
+                st.markdown(f"**Question {qid}:** {q_text}")
+                user_choice = st.radio(f"Select option for Q{qid}:", opts, key=f"quiz_radio_{lesson['id'][:6]}_{qid}", label_visibility="collapsed")
+
+                if st.button(f"Submit Answer for Q{qid}", key=f"btn_check_q_{lesson['id'][:6]}_{qid}"):
+                    if user_choice.strip() == correct.strip():
+                        st.success(f"🎉 **Correct!**\n\n{explanation}")
+                    else:
+                        st.error(f"❌ **Incorrect.** The correct answer is: **{correct}**\n\n*Pedagogical Explanation:* {explanation}")
+                st.write("")
 
 # =====================================================================
 # VIEW 9: EXPORT LESSON
