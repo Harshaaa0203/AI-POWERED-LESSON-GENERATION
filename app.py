@@ -140,28 +140,85 @@ with st.sidebar:
         if yt_key != st.session_state["youtube_key"]:
             st.session_state["youtube_key"] = yt_key
 
-    # Current Active Lesson display
+    # Current Active Lesson display & selector in sidebar
     st.divider()
-    if st.session_state["active_lesson_id"]:
-        active_lesson_meta = db.get_lesson(st.session_state["active_lesson_id"])
-        if active_lesson_meta:
-            st.markdown(f"**Active Workspace:**")
-            st.markdown(f"*{active_lesson_meta.get('title')}*")
-            status = active_lesson_meta.get("status", "processing")
-            status_class = f"status-{status.replace('_', '-')}"
-            st.markdown(f"<span class='status-badge {status_class}'>{status.upper()}</span>", unsafe_allow_html=True)
-            if st.button("Clear Active Lesson", use_container_width=True):
-                st.session_state["active_lesson_id"] = None
-                st.session_state["edit_buffer"] = {}
-                st.rerun()
-    else:
-        st.caption("No lesson currently loaded.")
+    st.markdown("#### 📚 Active Lesson")
+    all_saved = db.list_lessons(limit=100)
+    if all_saved:
+        id_options = [l["id"] for l in all_saved]
+        titles_map = {l["id"]: f"{l['title']}" for l in all_saved}
+        
+        # Ensure active_lesson_id defaults to the first available lesson
+        if not st.session_state.get("active_lesson_id") or st.session_state["active_lesson_id"] not in id_options:
+            st.session_state["active_lesson_id"] = id_options[0]
 
-# Helper to fetch active lesson
+        curr_sel_idx = id_options.index(st.session_state["active_lesson_id"])
+        selected_sb_id = st.selectbox(
+            "Select Loaded Lesson",
+            options=id_options,
+            format_func=lambda x: titles_map.get(x, x),
+            index=curr_sel_idx,
+            key="sb_lesson_picker"
+        )
+        if selected_sb_id != st.session_state["active_lesson_id"]:
+            st.session_state["active_lesson_id"] = selected_sb_id
+            st.session_state["edit_buffer"] = {}
+            st.rerun()
+
+        active_meta = db.get_lesson(st.session_state["active_lesson_id"])
+        if active_meta:
+            st_val = active_meta.get("status", "processing")
+            s_class = f"status-{st_val.replace('_', '-')}"
+            st.markdown(f"Status: <span class='status-badge {s_class}'>{st_val.upper()}</span>", unsafe_allow_html=True)
+    else:
+        st.session_state["active_lesson_id"] = None
+        st.caption("No lessons saved in database yet.")
+
+# Helper to fetch active lesson (auto-loads first available lesson)
 def get_active_lesson():
-    if not st.session_state["active_lesson_id"]:
+    if not st.session_state.get("active_lesson_id"):
+        available = db.list_lessons(limit=1)
+        if available:
+            st.session_state["active_lesson_id"] = available[0]["id"]
+            return available[0]
         return None
-    return db.get_lesson(st.session_state["active_lesson_id"])
+    lesson = db.get_lesson(st.session_state["active_lesson_id"])
+    if not lesson:
+        available = db.list_lessons(limit=1)
+        if available:
+            st.session_state["active_lesson_id"] = available[0]["id"]
+            return available[0]
+        return None
+    return lesson
+
+def render_top_lesson_switcher():
+    """Renders a top toolbar allowing immediate lesson switching across all views."""
+    all_lessons = db.list_lessons(limit=100)
+    if not all_lessons:
+        return
+    c_sel, c_stat = st.columns([3, 1])
+    id_map = {l["id"]: f"{l['title']}  [{l['status'].upper()}]" for l in all_lessons}
+    ids = list(id_map.keys())
+    curr_id = st.session_state.get("active_lesson_id")
+    idx = ids.index(curr_id) if curr_id in ids else 0
+    with c_sel:
+        chosen = st.selectbox(
+            "📚 Active Lesson Topic (Switch between saved lessons):",
+            options=ids,
+            format_func=lambda x: id_map.get(x, x),
+            index=idx,
+            key=f"switcher_{selected_nav[:2].strip()}"
+        )
+        if chosen != st.session_state.get("active_lesson_id"):
+            st.session_state["active_lesson_id"] = chosen
+            st.session_state["edit_buffer"] = {}
+            st.rerun()
+    with c_stat:
+        l_meta = db.get_lesson(st.session_state["active_lesson_id"])
+        if l_meta:
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+            st.caption(f"ID: `{l_meta['id'][:8]}` | {l_meta['created_at'][:10]}")
+    st.divider()
 
 # =====================================================================
 # VIEW 1: DASHBOARD
@@ -215,6 +272,21 @@ if "1. 📊 Dashboard" in selected_nav:
                 <div class="kpi-label">Avg Pedagogical QC</div>
             </div>
         """, unsafe_allow_html=True)
+
+    # Visual Analytics: 45-Minute Lesson Pacing Architecture
+    with st.expander("⏱️ Framework Pacing Architecture (45-Minute Lesson Allocation)", expanded=False):
+        import pandas as pd
+        pacing_df = pd.DataFrame([
+            {"Section": "1. Introduction", "Minutes": 3, "Focus": "Hook, Context & Preview"},
+            {"Section": "2. Prerequisites & Concepts", "Minutes": 5, "Focus": "Definitions & Foundational Terms"},
+            {"Section": "3. Detailed Explanations", "Minutes": 15, "Focus": "Deep Conceptual Breakdown"},
+            {"Section": "4. Real-World Examples", "Minutes": 7, "Focus": "Applied Production Scenarios"},
+            {"Section": "5. Practical Activity", "Minutes": 7, "Focus": "Hands-on Exercise"},
+            {"Section": "6. Knowledge Check", "Minutes": 5, "Focus": "Diagnostic Questions & Review"},
+            {"Section": "7. Lesson Summary", "Minutes": 3, "Focus": "Synthesis & Core Takeaways"}
+        ])
+        st.bar_chart(pacing_df.set_index("Section")["Minutes"], color="#3b82f6")
+        st.caption("Total Duration: Exactly 45 Minutes (Strictly Enforced by QC Agent 2).")
 
     st.markdown("<br/>", unsafe_allow_html=True)
 
@@ -347,6 +419,7 @@ elif "2. ➕ Create New Lesson" in selected_nav:
 # VIEW 3: RESEARCH RESULTS
 # =====================================================================
 elif "3. 🔍 Research Results" in selected_nav:
+    render_top_lesson_switcher()
     lesson = get_active_lesson()
     if not lesson:
         st.warning("No active lesson loaded. Please select or create a lesson first.")
@@ -415,6 +488,9 @@ elif "3. 🔍 Research Results" in selected_nav:
                             <a href="{yt.get('url')}" target="_blank" style="font-size: 0.85rem; font-weight: 600; color: #2563eb;">Watch Video on YouTube →</a>
                         </div>
                         """, unsafe_allow_html=True)
+                        if yt.get('url'):
+                            with st.expander("▶️ Watch Video Inline"):
+                                st.video(yt.get('url'))
 
         with tab_claims:
             st.markdown("#### Key Grounded Factual Claims")
@@ -441,6 +517,7 @@ elif "3. 🔍 Research Results" in selected_nav:
 # VIEW 4: GENERATED LESSON
 # =====================================================================
 elif "4. 📖 Generated Lesson" in selected_nav:
+    render_top_lesson_switcher()
     lesson = get_active_lesson()
     if not lesson:
         st.warning("No active lesson loaded. Please select or create a lesson first.")
@@ -522,6 +599,7 @@ elif "4. 📖 Generated Lesson" in selected_nav:
 # VIEW 5: FACTUAL ACCURACY QC
 # =====================================================================
 elif "5. 🛡️ Factual Accuracy QC" in selected_nav:
+    render_top_lesson_switcher()
     lesson = get_active_lesson()
     if not lesson:
         st.warning("No active lesson loaded. Please select or create a lesson first.")
@@ -604,6 +682,7 @@ elif "5. 🛡️ Factual Accuracy QC" in selected_nav:
 # VIEW 6: INSTRUCTIONAL QUALITY QC
 # =====================================================================
 elif "6. 🎯 Instructional Quality QC" in selected_nav:
+    render_top_lesson_switcher()
     lesson = get_active_lesson()
     if not lesson:
         st.warning("No active lesson loaded. Please select or create a lesson first.")
@@ -702,6 +781,7 @@ elif "6. 🎯 Instructional Quality QC" in selected_nav:
 # VIEW 7: REVIEW AND EDIT
 # =====================================================================
 elif "7. ✏️ Review and Edit" in selected_nav:
+    render_top_lesson_switcher()
     lesson = get_active_lesson()
     if not lesson:
         st.warning("No active lesson loaded. Please select or create a lesson first.")
@@ -828,6 +908,7 @@ elif "7. ✏️ Review and Edit" in selected_nav:
 # VIEW 8: PREVIEW LESSON
 # =====================================================================
 elif "8. 👁️ Preview Lesson" in selected_nav:
+    render_top_lesson_switcher()
     lesson = get_active_lesson()
     if not lesson:
         st.warning("No active lesson loaded. Please select or create a lesson first.")
@@ -845,6 +926,7 @@ elif "8. 👁️ Preview Lesson" in selected_nav:
 # VIEW 9: EXPORT LESSON
 # =====================================================================
 elif "9. 📤 Export Lesson" in selected_nav:
+    render_top_lesson_switcher()
     lesson = get_active_lesson()
     if not lesson:
         st.warning("No active lesson loaded. Please select or create a lesson first.")
@@ -897,6 +979,22 @@ elif "9. 📤 Export Lesson" in selected_nav:
                 mime="text/markdown",
                 use_container_width=True
             )
+
+            # 4. Master Dossier PDF (Lesson + Both QC Reports)
+            master_pdf_path = os.path.join("exports", f"Master_Dossier_{lesson['id'][:8]}.pdf")
+            try:
+                pdf_exporter.export_complete_package_pdf(lesson, master_pdf_path)
+                with open(master_pdf_path, "rb") as f:
+                    master_pdf_bytes = f.read()
+                st.download_button(
+                    "📥 Download Master Dossier PDF (All-in-One)",
+                    data=master_pdf_bytes,
+                    file_name=f"{title.replace(' ', '_')}_Master_Dossier.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Master Dossier PDF error: {e}")
 
         with col2:
             st.markdown("#### 🛡️ Quality Control Reports")

@@ -321,6 +321,140 @@ class PDFExporter:
         doc.build(story, canvasmaker=NumberedCanvas)
         return output_path
 
+    def export_complete_package_pdf(self, lesson_record: Dict[str, Any], output_path: str) -> str:
+        """Export master educational dossier: Lesson + Factual QC + Instructional QC with PageBreaks."""
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        doc = SimpleDocTemplate(
+            output_path, pagesize=letter, leftMargin=54, rightMargin=54, topMargin=54, bottomMargin=54
+        )
+        story = []
+        active_lesson = lesson_record.get("edited_lesson") or lesson_record.get("generated_lesson", {})
+        title = active_lesson.get("lesson_title", lesson_record.get("title", "Lesson"))
+        f_rep = lesson_record.get("factual_qc_report", {})
+        i_rep = lesson_record.get("instructional_qc_report", {})
+
+        # Master Cover Banner
+        story.append(Paragraph(f"Curriculum Master Dossier: {title}", self.styles["DocTitle"]))
+        story.append(Paragraph(
+            f"<b>Lesson ID:</b> {lesson_record.get('id', 'N/A')} &nbsp;|&nbsp; "
+            f"<b>Status:</b> {lesson_record.get('status', 'Completed').upper()} &nbsp;|&nbsp; "
+            f"<b>Generated:</b> {lesson_record.get('created_at', '')[:10]}",
+            self.styles["DocSubtitle"]
+        ))
+        story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor("#1e3a8a"), spaceAfter=14))
+
+        # PART 1: Full Lesson Content
+        obj = active_lesson.get("learning_objective", "")
+        obj_table = Table(
+            [[Paragraph(f"<b>🎯 Stated Learning Objective:</b><br/>{obj}", self.styles["CalloutText"])]],
+            colWidths=[504]
+        )
+        obj_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eff6ff")),
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#bfdbfe")),
+            ("PADDING", (0, 0), (-1, -1), 10),
+        ]))
+        story.append(obj_table)
+        story.append(Spacer(1, 14))
+
+        # 1. Introduction
+        story.append(Paragraph(f"1. Introduction ({active_lesson.get('introduction_minutes', 3)} Mins)", self.styles["SectionHeading"]))
+        story.append(Paragraph(active_lesson.get("introduction", ""), self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 2. Key Concepts
+        story.append(Paragraph(f"2. Prerequisites & Key Concepts ({active_lesson.get('prerequisites_and_key_concepts_minutes', 5)} Mins)", self.styles["SectionHeading"]))
+        for p in active_lesson.get("prerequisites", []):
+            story.append(Paragraph(f"• {p}", self.styles["BulletItem"]))
+        story.append(Spacer(1, 6))
+        for kc in active_lesson.get("key_concepts", []):
+            story.append(Paragraph(f"<b>{kc.get('concept')}:</b> {kc.get('definition')}", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 3. Detailed Explanations
+        story.append(Paragraph(f"3. Detailed Explanations ({active_lesson.get('detailed_explanations_minutes', 15)} Mins)", self.styles["SectionHeading"]))
+        de_text = active_lesson.get("detailed_explanations", "").replace("\n", "<br/>")
+        story.append(Paragraph(de_text, self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 4. Real World Examples
+        story.append(Paragraph(f"4. Real-World Applied Scenarios ({active_lesson.get('real_world_examples_minutes', 7)} Mins)", self.styles["SectionHeading"]))
+        for ex in active_lesson.get("real_world_examples", []):
+            story.append(Paragraph(f"<b>Scenario: {ex.get('scenario')}</b> ({ex.get('method_used', '')})<br/>{ex.get('explanation')}", self.styles["BodyDark"]))
+            story.append(Spacer(1, 4))
+        story.append(Spacer(1, 8))
+
+        # 5. Learning Activities
+        story.append(Paragraph(f"5. Interactive Practice Activity ({active_lesson.get('practical_activity_minutes', 7)} Mins)", self.styles["SectionHeading"]))
+        for act in active_lesson.get("learning_activities", []):
+            story.append(Paragraph(f"<b>{act.get('activity_title')}</b><br/>{act.get('instructions', '').replace(chr(10), '<br/>')}", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 6. Knowledge Check
+        story.append(Paragraph(f"6. Knowledge Check ({active_lesson.get('knowledge_check_minutes', 5)} Mins)", self.styles["SectionHeading"]))
+        for q in active_lesson.get("knowledge_check_questions", []):
+            opts_text = "<br/>".join([f"&nbsp;&nbsp;[ &nbsp; ] {opt}" for opt in q.get("options", [])])
+            story.append(Paragraph(f"<b>Q{q.get('question_id')}: {q.get('question')}</b><br/>{opts_text}<br/><b>Answer:</b> {q.get('correct_answer')}", self.styles["BodyDark"]))
+            story.append(Spacer(1, 4))
+        story.append(Spacer(1, 8))
+
+        # 7. Summary
+        story.append(Paragraph(f"7. Summary ({active_lesson.get('lesson_summary_minutes', 3)} Mins)", self.styles["SectionHeading"]))
+        story.append(Paragraph(active_lesson.get("lesson_summary", ""), self.styles["BodyDark"]))
+
+        # PART 2: Factual QC Audit Report (New Page)
+        story.append(PageBreak())
+        story.append(Paragraph("Quality Control Audit 1: Factual Accuracy Certificate", self.styles["DocTitle"]))
+        story.append(Paragraph(f"Auditor: QC Agent 1 (Independent Adversarial) &nbsp;|&nbsp; Target: {title}", self.styles["DocSubtitle"]))
+        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#059669"), spaceAfter=12))
+
+        f_score = f_rep.get("overall_score", 0)
+        f_status = f_rep.get("verification_status", "Passed")
+        f_box = Table([[
+            Paragraph(f"<b>Factual Accuracy Score:</b> {f_score}/100", self.styles["SectionHeading"]),
+            Paragraph(f"<b>Verification Status:</b> {f_status}", self.styles["SectionHeading"])
+        ]], colWidths=[252, 252])
+        f_box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#ecfdf5")),
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#a7f3d0")),
+            ("PADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(f_box)
+        story.append(Spacer(1, 10))
+        story.append(Paragraph(f"Claims Evaluated: {f_rep.get('claims_evaluated_count', 0)} | Supported: {f_rep.get('supported_claims_count', 0)} | Unsupported: {f_rep.get('unsupported_claims_count', 0)}", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Auditor Factual Summary:", self.styles["SubsectionHeading"]))
+        story.append(Paragraph(f_rep.get("final_summary", "Factual audit complete."), self.styles["BodyDark"]))
+
+        # PART 3: Instructional QC Audit Report (New Page)
+        story.append(PageBreak())
+        story.append(Paragraph("Quality Control Audit 2: Instructional Quality Certificate", self.styles["DocTitle"]))
+        story.append(Paragraph(f"Auditor: QC Agent 2 (Pedagogical Specialist) &nbsp;|&nbsp; Target: {title}", self.styles["DocSubtitle"]))
+        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6366f1"), spaceAfter=12))
+
+        i_score = i_rep.get("overall_score", 0)
+        i_status = i_rep.get("status", "High Quality")
+        i_box = Table([[
+            Paragraph(f"<b>Instructional Quality Score:</b> {i_score}/100", self.styles["SectionHeading"]),
+            Paragraph(f"<b>Pedagogical Rating:</b> {i_status}", self.styles["SectionHeading"])
+        ]], colWidths=[252, 252])
+        i_box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eef2ff")),
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#c7d2fe")),
+            ("PADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(i_box)
+        story.append(Spacer(1, 10))
+
+        t_audit = i_rep.get("time_allocation_audit", {})
+        story.append(Paragraph(f"<b>45-Minute Ceiling Audit:</b> Total {t_audit.get('total_allocated_minutes', 45)} Mins ({'✅ Compliant' if t_audit.get('is_within_limit', True) else '❌ Exceeded'})", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Auditor Pedagogical Summary:", self.styles["SubsectionHeading"]))
+        story.append(Paragraph(i_rep.get("final_summary", "Instructional audit complete."), self.styles["BodyDark"]))
+
+        doc.build(story, canvasmaker=NumberedCanvas)
+        return output_path
+
     def export_factual_qc_pdf(self, report: Dict[str, Any], title: str, output_path: str) -> str:
         """Export Factual Accuracy QC report to PDF."""
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
@@ -385,6 +519,140 @@ class PDFExporter:
         story.append(Spacer(1, 10))
         story.append(Paragraph("Auditor Final Summary:", self.styles["SectionHeading"]))
         story.append(Paragraph(report.get("final_summary", ""), self.styles["BodyDark"]))
+
+        doc.build(story, canvasmaker=NumberedCanvas)
+        return output_path
+
+    def export_complete_package_pdf(self, lesson_record: Dict[str, Any], output_path: str) -> str:
+        """Export master educational dossier: Lesson + Factual QC + Instructional QC with PageBreaks."""
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        doc = SimpleDocTemplate(
+            output_path, pagesize=letter, leftMargin=54, rightMargin=54, topMargin=54, bottomMargin=54
+        )
+        story = []
+        active_lesson = lesson_record.get("edited_lesson") or lesson_record.get("generated_lesson", {})
+        title = active_lesson.get("lesson_title", lesson_record.get("title", "Lesson"))
+        f_rep = lesson_record.get("factual_qc_report", {})
+        i_rep = lesson_record.get("instructional_qc_report", {})
+
+        # Master Cover Banner
+        story.append(Paragraph(f"Curriculum Master Dossier: {title}", self.styles["DocTitle"]))
+        story.append(Paragraph(
+            f"<b>Lesson ID:</b> {lesson_record.get('id', 'N/A')} &nbsp;|&nbsp; "
+            f"<b>Status:</b> {lesson_record.get('status', 'Completed').upper()} &nbsp;|&nbsp; "
+            f"<b>Generated:</b> {lesson_record.get('created_at', '')[:10]}",
+            self.styles["DocSubtitle"]
+        ))
+        story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor("#1e3a8a"), spaceAfter=14))
+
+        # PART 1: Full Lesson Content
+        obj = active_lesson.get("learning_objective", "")
+        obj_table = Table(
+            [[Paragraph(f"<b>🎯 Stated Learning Objective:</b><br/>{obj}", self.styles["CalloutText"])]],
+            colWidths=[504]
+        )
+        obj_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eff6ff")),
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#bfdbfe")),
+            ("PADDING", (0, 0), (-1, -1), 10),
+        ]))
+        story.append(obj_table)
+        story.append(Spacer(1, 14))
+
+        # 1. Introduction
+        story.append(Paragraph(f"1. Introduction ({active_lesson.get('introduction_minutes', 3)} Mins)", self.styles["SectionHeading"]))
+        story.append(Paragraph(active_lesson.get("introduction", ""), self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 2. Key Concepts
+        story.append(Paragraph(f"2. Prerequisites & Key Concepts ({active_lesson.get('prerequisites_and_key_concepts_minutes', 5)} Mins)", self.styles["SectionHeading"]))
+        for p in active_lesson.get("prerequisites", []):
+            story.append(Paragraph(f"• {p}", self.styles["BulletItem"]))
+        story.append(Spacer(1, 6))
+        for kc in active_lesson.get("key_concepts", []):
+            story.append(Paragraph(f"<b>{kc.get('concept')}:</b> {kc.get('definition')}", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 3. Detailed Explanations
+        story.append(Paragraph(f"3. Detailed Explanations ({active_lesson.get('detailed_explanations_minutes', 15)} Mins)", self.styles["SectionHeading"]))
+        de_text = active_lesson.get("detailed_explanations", "").replace("\n", "<br/>")
+        story.append(Paragraph(de_text, self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 4. Real World Examples
+        story.append(Paragraph(f"4. Real-World Applied Scenarios ({active_lesson.get('real_world_examples_minutes', 7)} Mins)", self.styles["SectionHeading"]))
+        for ex in active_lesson.get("real_world_examples", []):
+            story.append(Paragraph(f"<b>Scenario: {ex.get('scenario')}</b> ({ex.get('method_used', '')})<br/>{ex.get('explanation')}", self.styles["BodyDark"]))
+            story.append(Spacer(1, 4))
+        story.append(Spacer(1, 8))
+
+        # 5. Learning Activities
+        story.append(Paragraph(f"5. Interactive Practice Activity ({active_lesson.get('practical_activity_minutes', 7)} Mins)", self.styles["SectionHeading"]))
+        for act in active_lesson.get("learning_activities", []):
+            story.append(Paragraph(f"<b>{act.get('activity_title')}</b><br/>{act.get('instructions', '').replace(chr(10), '<br/>')}", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 6. Knowledge Check
+        story.append(Paragraph(f"6. Knowledge Check ({active_lesson.get('knowledge_check_minutes', 5)} Mins)", self.styles["SectionHeading"]))
+        for q in active_lesson.get("knowledge_check_questions", []):
+            opts_text = "<br/>".join([f"&nbsp;&nbsp;[ &nbsp; ] {opt}" for opt in q.get("options", [])])
+            story.append(Paragraph(f"<b>Q{q.get('question_id')}: {q.get('question')}</b><br/>{opts_text}<br/><b>Answer:</b> {q.get('correct_answer')}", self.styles["BodyDark"]))
+            story.append(Spacer(1, 4))
+        story.append(Spacer(1, 8))
+
+        # 7. Summary
+        story.append(Paragraph(f"7. Summary ({active_lesson.get('lesson_summary_minutes', 3)} Mins)", self.styles["SectionHeading"]))
+        story.append(Paragraph(active_lesson.get("lesson_summary", ""), self.styles["BodyDark"]))
+
+        # PART 2: Factual QC Audit Report (New Page)
+        story.append(PageBreak())
+        story.append(Paragraph("Quality Control Audit 1: Factual Accuracy Certificate", self.styles["DocTitle"]))
+        story.append(Paragraph(f"Auditor: QC Agent 1 (Independent Adversarial) &nbsp;|&nbsp; Target: {title}", self.styles["DocSubtitle"]))
+        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#059669"), spaceAfter=12))
+
+        f_score = f_rep.get("overall_score", 0)
+        f_status = f_rep.get("verification_status", "Passed")
+        f_box = Table([[
+            Paragraph(f"<b>Factual Accuracy Score:</b> {f_score}/100", self.styles["SectionHeading"]),
+            Paragraph(f"<b>Verification Status:</b> {f_status}", self.styles["SectionHeading"])
+        ]], colWidths=[252, 252])
+        f_box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#ecfdf5")),
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#a7f3d0")),
+            ("PADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(f_box)
+        story.append(Spacer(1, 10))
+        story.append(Paragraph(f"Claims Evaluated: {f_rep.get('claims_evaluated_count', 0)} | Supported: {f_rep.get('supported_claims_count', 0)} | Unsupported: {f_rep.get('unsupported_claims_count', 0)}", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Auditor Factual Summary:", self.styles["SubsectionHeading"]))
+        story.append(Paragraph(f_rep.get("final_summary", "Factual audit complete."), self.styles["BodyDark"]))
+
+        # PART 3: Instructional QC Audit Report (New Page)
+        story.append(PageBreak())
+        story.append(Paragraph("Quality Control Audit 2: Instructional Quality Certificate", self.styles["DocTitle"]))
+        story.append(Paragraph(f"Auditor: QC Agent 2 (Pedagogical Specialist) &nbsp;|&nbsp; Target: {title}", self.styles["DocSubtitle"]))
+        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6366f1"), spaceAfter=12))
+
+        i_score = i_rep.get("overall_score", 0)
+        i_status = i_rep.get("status", "High Quality")
+        i_box = Table([[
+            Paragraph(f"<b>Instructional Quality Score:</b> {i_score}/100", self.styles["SectionHeading"]),
+            Paragraph(f"<b>Pedagogical Rating:</b> {i_status}", self.styles["SectionHeading"])
+        ]], colWidths=[252, 252])
+        i_box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eef2ff")),
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#c7d2fe")),
+            ("PADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(i_box)
+        story.append(Spacer(1, 10))
+
+        t_audit = i_rep.get("time_allocation_audit", {})
+        story.append(Paragraph(f"<b>45-Minute Ceiling Audit:</b> Total {t_audit.get('total_allocated_minutes', 45)} Mins ({'✅ Compliant' if t_audit.get('is_within_limit', True) else '❌ Exceeded'})", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Auditor Pedagogical Summary:", self.styles["SubsectionHeading"]))
+        story.append(Paragraph(i_rep.get("final_summary", "Instructional audit complete."), self.styles["BodyDark"]))
 
         doc.build(story, canvasmaker=NumberedCanvas)
         return output_path
@@ -468,6 +736,140 @@ class PDFExporter:
         story.append(Spacer(1, 10))
         story.append(Paragraph("Auditor Final Summary:", self.styles["SectionHeading"]))
         story.append(Paragraph(report.get("final_summary", ""), self.styles["BodyDark"]))
+
+        doc.build(story, canvasmaker=NumberedCanvas)
+        return output_path
+
+    def export_complete_package_pdf(self, lesson_record: Dict[str, Any], output_path: str) -> str:
+        """Export master educational dossier: Lesson + Factual QC + Instructional QC with PageBreaks."""
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        doc = SimpleDocTemplate(
+            output_path, pagesize=letter, leftMargin=54, rightMargin=54, topMargin=54, bottomMargin=54
+        )
+        story = []
+        active_lesson = lesson_record.get("edited_lesson") or lesson_record.get("generated_lesson", {})
+        title = active_lesson.get("lesson_title", lesson_record.get("title", "Lesson"))
+        f_rep = lesson_record.get("factual_qc_report", {})
+        i_rep = lesson_record.get("instructional_qc_report", {})
+
+        # Master Cover Banner
+        story.append(Paragraph(f"Curriculum Master Dossier: {title}", self.styles["DocTitle"]))
+        story.append(Paragraph(
+            f"<b>Lesson ID:</b> {lesson_record.get('id', 'N/A')} &nbsp;|&nbsp; "
+            f"<b>Status:</b> {lesson_record.get('status', 'Completed').upper()} &nbsp;|&nbsp; "
+            f"<b>Generated:</b> {lesson_record.get('created_at', '')[:10]}",
+            self.styles["DocSubtitle"]
+        ))
+        story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor("#1e3a8a"), spaceAfter=14))
+
+        # PART 1: Full Lesson Content
+        obj = active_lesson.get("learning_objective", "")
+        obj_table = Table(
+            [[Paragraph(f"<b>🎯 Stated Learning Objective:</b><br/>{obj}", self.styles["CalloutText"])]],
+            colWidths=[504]
+        )
+        obj_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eff6ff")),
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#bfdbfe")),
+            ("PADDING", (0, 0), (-1, -1), 10),
+        ]))
+        story.append(obj_table)
+        story.append(Spacer(1, 14))
+
+        # 1. Introduction
+        story.append(Paragraph(f"1. Introduction ({active_lesson.get('introduction_minutes', 3)} Mins)", self.styles["SectionHeading"]))
+        story.append(Paragraph(active_lesson.get("introduction", ""), self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 2. Key Concepts
+        story.append(Paragraph(f"2. Prerequisites & Key Concepts ({active_lesson.get('prerequisites_and_key_concepts_minutes', 5)} Mins)", self.styles["SectionHeading"]))
+        for p in active_lesson.get("prerequisites", []):
+            story.append(Paragraph(f"• {p}", self.styles["BulletItem"]))
+        story.append(Spacer(1, 6))
+        for kc in active_lesson.get("key_concepts", []):
+            story.append(Paragraph(f"<b>{kc.get('concept')}:</b> {kc.get('definition')}", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 3. Detailed Explanations
+        story.append(Paragraph(f"3. Detailed Explanations ({active_lesson.get('detailed_explanations_minutes', 15)} Mins)", self.styles["SectionHeading"]))
+        de_text = active_lesson.get("detailed_explanations", "").replace("\n", "<br/>")
+        story.append(Paragraph(de_text, self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 4. Real World Examples
+        story.append(Paragraph(f"4. Real-World Applied Scenarios ({active_lesson.get('real_world_examples_minutes', 7)} Mins)", self.styles["SectionHeading"]))
+        for ex in active_lesson.get("real_world_examples", []):
+            story.append(Paragraph(f"<b>Scenario: {ex.get('scenario')}</b> ({ex.get('method_used', '')})<br/>{ex.get('explanation')}", self.styles["BodyDark"]))
+            story.append(Spacer(1, 4))
+        story.append(Spacer(1, 8))
+
+        # 5. Learning Activities
+        story.append(Paragraph(f"5. Interactive Practice Activity ({active_lesson.get('practical_activity_minutes', 7)} Mins)", self.styles["SectionHeading"]))
+        for act in active_lesson.get("learning_activities", []):
+            story.append(Paragraph(f"<b>{act.get('activity_title')}</b><br/>{act.get('instructions', '').replace(chr(10), '<br/>')}", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+
+        # 6. Knowledge Check
+        story.append(Paragraph(f"6. Knowledge Check ({active_lesson.get('knowledge_check_minutes', 5)} Mins)", self.styles["SectionHeading"]))
+        for q in active_lesson.get("knowledge_check_questions", []):
+            opts_text = "<br/>".join([f"&nbsp;&nbsp;[ &nbsp; ] {opt}" for opt in q.get("options", [])])
+            story.append(Paragraph(f"<b>Q{q.get('question_id')}: {q.get('question')}</b><br/>{opts_text}<br/><b>Answer:</b> {q.get('correct_answer')}", self.styles["BodyDark"]))
+            story.append(Spacer(1, 4))
+        story.append(Spacer(1, 8))
+
+        # 7. Summary
+        story.append(Paragraph(f"7. Summary ({active_lesson.get('lesson_summary_minutes', 3)} Mins)", self.styles["SectionHeading"]))
+        story.append(Paragraph(active_lesson.get("lesson_summary", ""), self.styles["BodyDark"]))
+
+        # PART 2: Factual QC Audit Report (New Page)
+        story.append(PageBreak())
+        story.append(Paragraph("Quality Control Audit 1: Factual Accuracy Certificate", self.styles["DocTitle"]))
+        story.append(Paragraph(f"Auditor: QC Agent 1 (Independent Adversarial) &nbsp;|&nbsp; Target: {title}", self.styles["DocSubtitle"]))
+        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#059669"), spaceAfter=12))
+
+        f_score = f_rep.get("overall_score", 0)
+        f_status = f_rep.get("verification_status", "Passed")
+        f_box = Table([[
+            Paragraph(f"<b>Factual Accuracy Score:</b> {f_score}/100", self.styles["SectionHeading"]),
+            Paragraph(f"<b>Verification Status:</b> {f_status}", self.styles["SectionHeading"])
+        ]], colWidths=[252, 252])
+        f_box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#ecfdf5")),
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#a7f3d0")),
+            ("PADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(f_box)
+        story.append(Spacer(1, 10))
+        story.append(Paragraph(f"Claims Evaluated: {f_rep.get('claims_evaluated_count', 0)} | Supported: {f_rep.get('supported_claims_count', 0)} | Unsupported: {f_rep.get('unsupported_claims_count', 0)}", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Auditor Factual Summary:", self.styles["SubsectionHeading"]))
+        story.append(Paragraph(f_rep.get("final_summary", "Factual audit complete."), self.styles["BodyDark"]))
+
+        # PART 3: Instructional QC Audit Report (New Page)
+        story.append(PageBreak())
+        story.append(Paragraph("Quality Control Audit 2: Instructional Quality Certificate", self.styles["DocTitle"]))
+        story.append(Paragraph(f"Auditor: QC Agent 2 (Pedagogical Specialist) &nbsp;|&nbsp; Target: {title}", self.styles["DocSubtitle"]))
+        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#6366f1"), spaceAfter=12))
+
+        i_score = i_rep.get("overall_score", 0)
+        i_status = i_rep.get("status", "High Quality")
+        i_box = Table([[
+            Paragraph(f"<b>Instructional Quality Score:</b> {i_score}/100", self.styles["SectionHeading"]),
+            Paragraph(f"<b>Pedagogical Rating:</b> {i_status}", self.styles["SectionHeading"])
+        ]], colWidths=[252, 252])
+        i_box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eef2ff")),
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#c7d2fe")),
+            ("PADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(i_box)
+        story.append(Spacer(1, 10))
+
+        t_audit = i_rep.get("time_allocation_audit", {})
+        story.append(Paragraph(f"<b>45-Minute Ceiling Audit:</b> Total {t_audit.get('total_allocated_minutes', 45)} Mins ({'✅ Compliant' if t_audit.get('is_within_limit', True) else '❌ Exceeded'})", self.styles["BodyDark"]))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Auditor Pedagogical Summary:", self.styles["SubsectionHeading"]))
+        story.append(Paragraph(i_rep.get("final_summary", "Instructional audit complete."), self.styles["BodyDark"]))
 
         doc.build(story, canvasmaker=NumberedCanvas)
         return output_path
