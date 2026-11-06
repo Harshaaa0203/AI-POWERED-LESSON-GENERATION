@@ -133,3 +133,4 @@ class InstructionalQCAgent:
                 f"Instructional audit completed with overall rating: {report['status']} ({report['overall_score']}/100). "
                 f"Content pacing aligns with the 45-minute curriculum design."
             )
+

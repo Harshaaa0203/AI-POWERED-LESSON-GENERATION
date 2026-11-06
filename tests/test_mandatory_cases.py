@@ -141,3 +141,4 @@ def test_mandatory_case_2_binary_search(clean_service):
     pdf_path = pdf_exporter.export_lesson_pdf(gen_lesson, pdf_out)
     assert os.path.exists(pdf_path)
     assert os.path.getsize(pdf_path) > 1000
+

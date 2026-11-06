@@ -68,3 +68,4 @@ Please evaluate the instructional design across all dimensions and return ONLY v
   "final_summary": "Comprehensive assessment of the lesson's instructional effectiveness and readiness."
 }}
 """
+

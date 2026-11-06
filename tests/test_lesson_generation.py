@@ -61,3 +61,4 @@ def test_lesson_generator_produces_all_14_sections():
     # Run structure validator
     is_valid, issues = validate_lesson_structure(lesson)
     assert is_valid is True, f"Lesson structure validation failed: {issues}"
+

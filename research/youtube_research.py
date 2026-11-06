@@ -151,3 +151,4 @@ class YouTubeResearch:
         # Sort top educational channels first
         results.sort(key=lambda x: 0 if x.get("credibility") == "High" else 1)
         return results[:max_results]
+

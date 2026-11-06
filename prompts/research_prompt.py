@@ -52,3 +52,4 @@ Please synthesize this research into a structured JSON research brief:
   ]
 }}
 """
+

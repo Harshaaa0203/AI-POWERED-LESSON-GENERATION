@@ -189,3 +189,4 @@ class LessonService:
 
         self.db.update_lesson(lesson_id, {"edited_lesson": updated_lesson})
         return self.db.get_lesson(lesson_id)
+

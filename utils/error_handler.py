@@ -87,3 +87,4 @@ def format_error_for_ui(e: Exception) -> str:
     if "rate" in msg.lower() or "429" in msg:
         return "Rate limit exceeded: The external API quota was reached. Please wait a moment before retrying."
     return f"Operation encountered an unexpected error: {msg}"
+

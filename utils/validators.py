@@ -128,3 +128,4 @@ def sanitize_text(text: str) -> str:
     text = re.sub(r"\r\n|\r", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+

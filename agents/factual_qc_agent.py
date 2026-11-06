@@ -99,3 +99,4 @@ class FactualQCAgent:
                 f"Factual evaluation completed with an overall score of {report['overall_score']}/100. "
                 f"{report['supported_claims_count']} of {report['claims_evaluated_count']} claims were fully verified."
             )
+

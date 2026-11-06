@@ -1012,3 +1012,4 @@ elif "10. 💾 Saved Lessons" in selected_nav:
                         if st.button("Cancel", key=f"cancel_del_{lid}"):
                             st.session_state["delete_confirm_id"] = None
                             st.rerun()
+

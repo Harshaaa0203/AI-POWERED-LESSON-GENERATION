@@ -86,3 +86,4 @@ def format_duration(minutes: Any) -> str:
         return f"{m} mins" if m != 1 else "1 min"
     except Exception:
         return f"{minutes}"
+

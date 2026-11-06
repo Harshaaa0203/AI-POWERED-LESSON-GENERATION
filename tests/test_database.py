@@ -78,3 +78,4 @@ def test_dashboard_stats(temp_db):
     assert stats["needs_review_lessons"] == 1
     assert stats["avg_factual_score"] == 85.0
     assert stats["avg_instructional_score"] == 90.0
+

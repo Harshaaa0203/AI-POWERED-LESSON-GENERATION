@@ -77,3 +77,4 @@ def test_research_agent_end_to_end():
     assert len(results["web_sources"]) > 0 or len(results["youtube_resources"]) > 0
     assert "research_summary" in results
     assert "key_factual_claims" in results
+

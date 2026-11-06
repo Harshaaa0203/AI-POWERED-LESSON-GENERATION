@@ -454,3 +454,4 @@ class AIService:
                 {"source": f"Research references on {title}", "url": "https://en.wikipedia.org"}
             ]
         }, indent=2)
+

@@ -147,3 +147,4 @@ class LessonGenerator:
                 {"source": f"{b.get('title')} by {', '.join(b.get('authors', []))}", "url": b.get("url", "")}
                 for b in book_sources[:2]
             ]
+

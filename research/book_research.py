@@ -122,3 +122,4 @@ class BookResearch:
                         "notes": f"{publisher} ({year})"
                     })
         return results
+

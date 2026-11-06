@@ -26,3 +26,4 @@ CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_lessons_created ON lessons(created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_lessons_title ON lessons(title);"
 ]
+

@@ -104,3 +104,4 @@ class SourceValidator:
                 seen.add(norm)
                 unique.append(s)
         return unique
+

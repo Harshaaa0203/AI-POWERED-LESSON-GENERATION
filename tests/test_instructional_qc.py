@@ -38,3 +38,4 @@ def test_instructional_qc_audit():
     assert "time_allocation_audit" in report
     assert report["time_allocation_audit"]["total_allocated_minutes"] <= 45
     assert report["time_allocation_audit"]["is_within_limit"] is True
+

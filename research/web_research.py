@@ -109,3 +109,4 @@ class WebResearch:
         except Exception as e:
             logger.warning(f"Wikipedia API search failed: {e}")
         return results
+

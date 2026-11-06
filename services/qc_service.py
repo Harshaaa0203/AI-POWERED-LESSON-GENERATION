@@ -80,3 +80,4 @@ class QCService:
         })
 
         return self.db.get_lesson(lesson_id)
+

@@ -36,3 +36,4 @@ def test_factual_qc_audit():
     assert "identified_issues" in report
     assert isinstance(report["identified_issues"], list)
     assert "final_summary" in report
+

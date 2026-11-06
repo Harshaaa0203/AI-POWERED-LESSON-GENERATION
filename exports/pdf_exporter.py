@@ -471,3 +471,4 @@ class PDFExporter:
 
         doc.build(story, canvasmaker=NumberedCanvas)
         return output_path
+
